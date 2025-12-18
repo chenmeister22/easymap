@@ -47,6 +47,7 @@ export default async function handler(req, res) {
 
       while (url && allResults.length < 60 && pageCount < 3) {
         const qs = new URLSearchParams(params).toString();
+        console.log("Fetching Google Places:", `${url}?${qs}`);
         const response = await fetch(`${url}?${qs}`);
         const data = await response.json();
 

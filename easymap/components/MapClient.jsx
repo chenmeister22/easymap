@@ -68,10 +68,20 @@ export default function MapClient() {
 
   const onMapClick = useCallback(async (latlng) => {
     setMarker(latlng);
-    const res = await fetch(`/api/google-places?lat=${latlng.lat}&lng=${latlng.lng}&radius=${distance}&types=${placeTypes.join(',')}&limit=${limit}`);
+    const [minprice, maxprice] = Array.isArray(priceRange) ? priceRange : [0, 4];
+    const qs = new URLSearchParams({
+      lat: latlng.lat,
+      lng: latlng.lng,
+      radius: String(distance),
+      types: placeTypes.join(','),
+      minprice: String(minprice),
+      maxprice: String(maxprice),
+      limit: String(limit)
+    }).toString();
+    const res = await fetch(`/api/google-places?${qs}`);
     const data = await res.json();
     setResults(data.results || []);
-  }, [distance, placeTypes, limit]);
+  }, [distance, placeTypes, limit, priceRange]);
 
   // ask for browser geolocation once and center the map there
   useEffect(() => {
