@@ -1,6 +1,6 @@
 "use client";
 import { useState, useCallback, useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents, Circle } from "react-leaflet";
 import L from "leaflet";
 
 import Box from '@mui/material/Box';
@@ -41,6 +41,7 @@ export default function MapClient() {
   const [center, setCenter] = useState([41.8781, -87.6298]);
   const [map, setMap] = useState(null);
   const [distance, setDistance] = useState(1000);
+  const [distanceInput, setDistanceInput] = useState(String(1000));
   const [placeTypes, setPlaceTypes] = useState(["restaurant"]);
   const [priceRange, setPriceRange] = useState([0,4]);
   const [limit, setLimit] = useState(30);
@@ -48,8 +49,10 @@ export default function MapClient() {
 
   const TYPE_OPTIONS = [
     'restaurant',
+    'bars',
     'supermarket',
     'transit_station',
+    'park',
     'lodging',
     'book_store',
     'church',
@@ -57,23 +60,32 @@ export default function MapClient() {
 
   const DISPLAY_LABELS = {
     restaurant: '🥘',
+    bars: '🍺',
+    supermarket: '🛒',
+    transit_station: '🚌',
+    park: '🌳',
     lodging: '🛏️',
     book_store: '📚',
-    transit_station: '🚌',
-    supermarket: '🛒'
-    ,church: '⛪'
+    church: '⛪',
+  };
+
+  // map a selected type to additional types to include in the search
+  const TYPE_EXPANSIONS = {
+    book_store: ['book_store', 'library'],
+    bars: ['bar', 'night_club']
   };
 
   
-
   const onMapClick = useCallback(async (latlng) => {
     setMarker(latlng);
     const [minprice, maxprice] = Array.isArray(priceRange) ? priceRange : [0, 4];
+    // expand certain selections to include related place types (deduplicated)
+    const expandedTypes = Array.from(new Set(placeTypes.flatMap(t => TYPE_EXPANSIONS[t] ?? [t])));
     const qs = new URLSearchParams({
       lat: latlng.lat,
       lng: latlng.lng,
       radius: String(distance),
-      types: placeTypes.join(','),
+      types: expandedTypes.join(','),
       minprice: String(minprice),
       maxprice: String(maxprice),
       limit: String(limit)
@@ -142,8 +154,23 @@ export default function MapClient() {
           <TextField
             label="Distance (m)"
             type="number"
-            value={distance}
-            onChange={e => setDistance(Number(e.target.value))}
+            value={distanceInput}
+            onChange={e => {
+              const v = e.target.value;
+              setDistanceInput(v);
+              // only update numeric distance when the input is non-empty and a valid number
+              if (v === '') {
+                // keep distance numeric (used elsewhere) as 0 while input is empty
+                setDistance(0);
+              } else {
+                const n = Number(v);
+                if (!Number.isNaN(n)) setDistance(n);
+              }
+            }}
+            onBlur={() => {
+              // if the user leaves the field empty, keep the numeric distance at 0
+              if (distanceInput.trim() === '') setDistance(0);
+            }}
             inputProps={{ step: 500, min: 0 }}
             size="small"
             sx={{ flex: '0 0 70%', minWidth: 0 }}
@@ -174,49 +201,56 @@ export default function MapClient() {
         </Stack>
 
         <Divider />
-
-        <Typography variant="subtitle1">Results ({results.length})</Typography>
-        <Paper variant="outlined" sx={{ maxHeight: 320, overflow: 'auto' }}>
-          <List dense>
-            {results.map(r => (
-              <ListItem key={r.place_id || r.id} divider alignItems="flex-start">
-                <ListItemText
-                  primary={r.name}
-                  secondary={
-                    <Stack spacing={0.5}>
-                      <span>{r.vicinity || r.location?.address}</span>
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <Rating name={`rating-${r.place_id || r.id}`} value={r.rating || 0} precision={0.1} readOnly size="small" />
-                        <Chip label={`${r.rating ? r.rating.toFixed(1) : '—'} (${r.user_ratings_total || 0} reviews)`} size="small" variant="outlined" />
-                        <Chip
-                          label={
-                            typeof r.price_level === 'number'
-                              ? (r.price_level === 0 ? 'Free' : '$'.repeat(Math.max(0, r.price_level)))
-                              : '—'
-                          }
-                          size="small"
-                          variant="outlined"
-                        />
-                      </Stack>
-                    </Stack>
-                  }
-                />
-              </ListItem>
-            ))}
-          </List>
-        </Paper>
       </Paper>
 
       <Box sx={{ order: { xs: 2, md: 2 }, width: '100%', minWidth: 0 }}>
           <div style={{ height: '360px', width: '100%', maxWidth: '100%' }}>
-          <MapContainer center={center} zoom={11} whenCreated={m => setMap(m)} style={{height:'100%', width:'100%'}}>
-            <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-            <ClickHandler onClick={onMapClick} />
-            {marker && <Marker position={[marker.lat, marker.lng]}>
-              <Popup>{marker.lat.toFixed(5)}, {marker.lng.toFixed(5)}</Popup>
-            </Marker>}
-          </MapContainer>
-        </div>
+            <MapContainer center={center} zoom={11} whenCreated={m => setMap(m)} style={{height:'100%', width:'100%'}}>
+              <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+              <ClickHandler onClick={onMapClick} />
+              {marker && <Marker position={[marker.lat, marker.lng]}>
+                <Popup>{marker.lat.toFixed(5)}, {marker.lng.toFixed(5)}</Popup>
+              </Marker>}
+              {/* Draw search radius circle around marker or current center */}
+              <Circle
+                center={marker ? [marker.lat, marker.lng] : center}
+                radius={Number(distance) || 0}
+                pathOptions={{ color: '#1976d2', fillColor: '#1976d2', fillOpacity: 0.08 }}
+              />
+            </MapContainer>
+          </div>
+
+          <Divider sx={{ my: 2 }} />
+          <Typography variant="subtitle1">Results ({results.length})</Typography>
+          <Paper variant="outlined" sx={{ mt: 1, maxHeight: 320, overflow: 'auto' }}>
+            <List dense>
+              {results.map(r => (
+                <ListItem key={r.place_id || r.id} divider alignItems="flex-start">
+                  <ListItemText
+                    primary={r.name}
+                    secondary={
+                      <Stack spacing={0.5}>
+                        <span>{r.vicinity || r.location?.address}</span>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <Rating name={`rating-${r.place_id || r.id}`} value={r.rating || 0} precision={0.1} readOnly size="small" />
+                          <Chip label={`${r.rating ? r.rating.toFixed(1) : '—'} (${r.user_ratings_total || 0} reviews)`} size="small" variant="outlined" />
+                          <Chip
+                            label={
+                              typeof r.price_level === 'number'
+                                ? (r.price_level === 0 ? 'Free' : '$'.repeat(Math.max(0, r.price_level)))
+                                : '—'
+                            }
+                            size="small"
+                            variant="outlined"
+                          />
+                        </Stack>
+                      </Stack>
+                    }
+                  />
+                </ListItem>
+              ))}
+            </List>
+          </Paper>
       </Box>
     </Box>
   );

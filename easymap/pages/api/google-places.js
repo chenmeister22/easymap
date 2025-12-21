@@ -81,8 +81,25 @@ export default async function handler(req, res) {
       }
     }
 
+    // Remove duplicate places using only the place name (case-insensitive).
+    // This intentionally ignores `place_id` and deduplicates purely by normalized name.
+    const seen = new Set();
+    const deduped = [];
+    for (const p of allResults) {
+      const key = p.name ? p.name.toLowerCase().trim() : null;
+      if (!key) {
+        // if no name, just include it
+        deduped.push(p);
+        continue;
+      }
+      if (!seen.has(key)) {
+        seen.add(key);
+        deduped.push(p);
+      }
+    }
+
     // Sort by most reviewed
-    const sorted = allResults.sort(
+    const sorted = deduped.sort(
       (a, b) =>
         (b.user_ratings_total || 0) - (a.user_ratings_total || 0)
     );
