@@ -1,6 +1,6 @@
 "use client";
 import { useState, useCallback, useEffect } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMapEvents, Circle } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, useMapEvents, Circle, useMap } from "react-leaflet";
 import L from "leaflet";
 
 import Box from '@mui/material/Box';
@@ -36,10 +36,17 @@ function ClickHandler({ onClick }) {
   return null;
 }
 
+function MapController({ center }) {
+  const map = useMap();
+  useEffect(() => {
+    if (center) map.setView(center, map.getZoom());
+  }, [center]);
+  return null;
+}
+
 export default function MapClient() {
   const [marker, setMarker] = useState(null);
   const [center, setCenter] = useState([41.8781, -87.6298]);
-  const [map, setMap] = useState(null);
   const [distance, setDistance] = useState(1000);
   const [distanceInput, setDistanceInput] = useState(String(1000));
   const [placeTypes, setPlaceTypes] = useState(["restaurant"]);
@@ -105,7 +112,6 @@ export default function MapClient() {
         const c = [pos.coords.latitude, pos.coords.longitude];
         setCenter(c);
         setMarker({ lat: c[0], lng: c[1] });
-        if (map) map.setView(c, map.getZoom());
       },
       (err) => {
         // keep default center if user denies or error occurs
@@ -114,14 +120,7 @@ export default function MapClient() {
       { enableHighAccuracy: true, maximumAge: 60_000 }
     );
     return () => { mounted = false; };
-  }, [map]);
-
-  // ensure map follows center changes
-  useEffect(() => {
-    if (map && Array.isArray(center)) {
-      try { map.setView(center, map.getZoom()); } catch (e) { /* ignore */ }
-    }
-  }, [center, map]);
+  }, []);
 
   
 
@@ -205,7 +204,8 @@ export default function MapClient() {
 
       <Box sx={{ order: { xs: 2, md: 2 }, width: '100%', minWidth: 0 }}>
           <div style={{ height: '360px', width: '100%', maxWidth: '100%' }}>
-            <MapContainer center={center} zoom={11} whenCreated={m => setMap(m)} style={{height:'100%', width:'100%'}}>
+            <MapContainer center={center} zoom={11} style={{height:'100%', width:'100%'}}>
+              <MapController center={center} />
               <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
               <ClickHandler onClick={onMapClick} />
               {marker && <Marker position={[marker.lat, marker.lng]}>
