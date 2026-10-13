@@ -17,7 +17,7 @@ export default function App({ Component, pageProps }) {
   return (
     <ThemeProvider theme={theme}>
       <Head>
-        <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+        <link rel="icon" href="/icon.png" type="image/png" />
       </Head>
       <CssBaseline />
       <Component {...pageProps} />
